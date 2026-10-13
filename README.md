@@ -23,3 +23,7 @@ A aplicação será instrumentada para expor métricas ao Prometheus e visualiz�
 ## Status
 
 Em desenvolvimento.
+
+## Arquitetura geral
+
+![Diagrama geral da arquitetura](docs/diagrams/arquitetura-geral.png)
