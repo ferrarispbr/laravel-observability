@@ -26,4 +26,4 @@ Em desenvolvimento.
 
 ## Arquitetura geral
 
-![Diagrama geral da arquitetura](docs/diagrams/arquitetura-geral.png)
+![Diagrama geral da arquitetura](docs/diagrams/arquitetura-geral.png.png)
