@@ -115,4 +115,42 @@ class OrderController extends Controller
         ]);
     }
 
+    public function cancel(Request $request, Order $order): JsonResponse
+    {
+        $order = DB::transaction(function () use ($request, $order) {
+            $order = $request->user()
+                ->orders()
+                ->with('items')
+                ->lockForUpdate()
+                ->findOrFail($order->id);
+
+            if ($order->status === OrderStatus::CANCELADO) {
+                throw ValidationException::withMessages([
+                    'order' => ['Este pedido já está cancelado.'],
+                ]);
+            }
+
+            if ($order->status === OrderStatus::CONFIRMADO) {
+                foreach ($order->items as $item) {
+                    $product = Product::query()
+                        ->lockForUpdate()
+                        ->findOrFail($item->product_id);
+
+                    $product->increment('stock', $item->quantity);
+                }
+            }
+
+            $order->update([
+                'status' => OrderStatus::CANCELADO,
+            ]);
+
+            return $order->load(['items.product']);
+        });
+
+        return response()->json([
+            'message' => 'Pedido cancelado com sucesso.',
+            'data' => $order,
+        ]);
+    }
+
 }
