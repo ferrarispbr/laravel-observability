@@ -13,9 +13,7 @@ use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+
     public function index(Request $request): JsonResponse
     {
         $orders = $request->user()
@@ -29,9 +27,19 @@ class OrderController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    public function show(Request $request, Order $order): JsonResponse
+    {
+        $order = $request->user()
+            ->orders()
+            ->with(['items.product'])
+            ->findOrFail($order->id);
+
+        return response()->json([
+            'data' => $order,
+        ]);
+    }
+
+
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([

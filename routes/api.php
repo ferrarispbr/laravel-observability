@@ -22,6 +22,8 @@ Route::post('/products', [ProductController::class, 'store'])->middleware('auth:
 
 Route::get('/orders', [OrderController::class, 'index'])->middleware('auth:sanctum');
 
+Route::get('/orders/{order}', [OrderController::class, 'show'])->middleware('auth:sanctum');
+
 Route::post('/orders', [OrderController::class, 'store'])->middleware('auth:sanctum');
 
 Route::post('/orders/{order}/confirm', [OrderController::class, 'confirm'])->middleware('auth:sanctum');
