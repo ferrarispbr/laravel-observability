@@ -22,12 +22,7 @@
             <div id="order-loading" class="card shadow-sm">
                 <div class="card-body p-4">
                     <div class="d-flex align-items-center gap-2 text-body-secondary">
-                        <span
-                            class="spinner-border spinner-border-sm"
-                            role="status"
-                            aria-hidden="true"
-                        ></span>
-
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                         <span>Carregando pedido...</span>
                     </div>
                 </div>

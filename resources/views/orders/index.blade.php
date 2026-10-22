@@ -21,9 +21,7 @@
                 <div id="orders-feedback" aria-live="polite"></div>
 
                 <div id="orders-list">
-                    <p class="text-body-secondary mb-0">
-                        Os pedidos serão carregados aqui.
-                    </p>
+                    <p class="text-body-secondary mb-0">Os pedidos serão carregados aqui.</p>
                 </div>
             </div>
         </section>

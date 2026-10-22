@@ -1,5 +1,6 @@
 import type {Pedido,RespostaListaPedidos,} from '../interfaces/Order';
 import { requisicaoApi } from '../services/api';
+import { obterClasseStatus } from '../utils/statusPedido';
 
 const listaPedidos      =   document.querySelector<HTMLDivElement>('#orders-list');
 const feedbackPedidos   =   document.querySelector<HTMLDivElement>('#orders-feedback',);
@@ -11,15 +12,6 @@ function formatarPreco(preco: string | number): string {
     }).format(Number(preco));
 }
 
-function obterClasseStatus(status: Pedido['status']): string {
-    const classesPorStatus = {
-        pendente: 'text-bg-warning',
-        confirmado: 'text-bg-success',
-        cancelado: 'text-bg-secondary',
-    };
-
-    return classesPorStatus[status];
-}
 
 function exibirFeedbackPedidos(mensagem: string): void {
     if (!feedbackPedidos) {

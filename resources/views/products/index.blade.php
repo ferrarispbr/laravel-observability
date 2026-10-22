@@ -1,19 +1,17 @@
 @extends('layouts.app')
 
 @section('content')
-    <main id="products-page" class="container py-5">>
+    <main id="products-page" class="container py-5">
         <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
             <div>
                 <h1 class="h3 mb-2"> Produtos e pedidos </h1>
-
                 <p class="text-body-secondary mb-0"> Selecione produtos para montar um novo pedido. </p>
             </div>
 
-            <button id="logout-button" type="button" class="btn btn-outline-secondary">
-                Sair
-            </button>
+            <div class="d-flex gap-2">
+                <a href="{{ route('orders.index') }}" class="btn btn-outline-primary">Meus pedidos</a>
+            </div>
         </div>
-
         <div class="row g-4">
             <div class="col-lg-8">
                 <section class="card shadow-sm">

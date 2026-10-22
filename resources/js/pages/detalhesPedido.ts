@@ -2,10 +2,12 @@
 import type {RespostaErroApi,UsuarioPerfil,} from '../interfaces/Auth';
 import type { Pedido, RespostaPedido } from '../interfaces/Order';
 import { requisicaoApi } from '../services/api';
+import { obterClasseStatus } from '../utils/statusPedido';
 
 const carregamentoPedido=   document.querySelector<HTMLDivElement>('#order-loading',);
 const conteudoPedido    =   document.querySelector<HTMLDivElement>('#order-content',);
 const feedbackPedido    =   document.querySelector<HTMLDivElement>('#order-feedback',);
+
 
 function formatarPreco(preco: string | number): string {
     return new Intl.NumberFormat('pt-BR', {
@@ -21,15 +23,16 @@ function formatarData(data: string): string {
     }).format(new Date(data));
 }
 
-function obterClasseStatus(status: Pedido['status']): string {
-    const classesPorStatus = {
-        pendente: 'text-bg-warning',
-        confirmado: 'text-bg-success',
-        cancelado: 'text-bg-secondary',
-    };
+// function obterClasseStatus(status: Pedido['status']): string {
 
-    return classesPorStatus[status];
-}
+//     const classesPorStatus = {
+//         pendente: 'border border-warning text-warning bg-transparent',
+//         confirmado: 'border border-success text-success bg-transparent',
+//         cancelado: 'border border-danger text-danger bg-transparent',
+//     };
+
+//     return classesPorStatus[status];
+// }
 
 function obterIdPedidoDaUrl(): number | null {
     const partesDaUrl = window.location.pathname.split('/');
@@ -148,6 +151,24 @@ function preencherItensPedido(pedido: Pedido): void {
     preencherTexto('#order-total', formatarPreco(pedido.total));
 }
 
+function criarLinksNavegacao(): DocumentFragment
+{
+    const navegacao             =   document.createDocumentFragment();
+    const linkContinuarComprando=   document.createElement('a');
+    const linkMeusPedidos       =   document.createElement('a');
+
+    linkContinuarComprando.href         =   '/produtos';
+    linkContinuarComprando.className    =   'btn btn-primary flex-fill';
+    linkContinuarComprando.textContent  =   'Continuar comprando';
+
+    linkMeusPedidos.href        =   '/meus-pedidos';
+    linkMeusPedidos.className   =   'btn btn-outline-secondary flex-fill';
+    linkMeusPedidos.textContent =   'Ver meus pedidos';
+
+    navegacao.append(linkContinuarComprando, linkMeusPedidos);
+
+    return navegacao;
+}
 
 function criarAcoesPedido(pedido: Pedido): void {
     const acoesPedido = document.querySelector<HTMLDivElement>(
@@ -159,31 +180,44 @@ function criarAcoesPedido(pedido: Pedido): void {
     }
 
     acoesPedido.replaceChildren();
+    acoesPedido.className = 'd-flex flex-column flex-md-row gap-2';
 
-    if (pedido.status !== 'pendente') {
+    if (pedido.status === 'cancelado')
+    {
+        acoesPedido.append(criarLinksNavegacao());
         return;
     }
 
     const botaoConfirmar= document.createElement('button');
     const botaoCancelar = document.createElement('button');
 
-    botaoCancelar.type = 'button';
-    botaoCancelar.className = 'btn btn-outline-danger';
-    botaoCancelar.textContent = 'Cancelar pedido';
+    botaoCancelar.type          =   'button';
+    botaoCancelar.className     =   'btn btn-outline-danger flex-fill';
+    botaoCancelar.textContent   =   'Cancelar pedido';
 
     botaoCancelar.addEventListener('click', () => {
         void cancelarPedido(pedido, botaoCancelar);
     });
 
-    botaoConfirmar.type = 'button';
-    botaoConfirmar.className = 'btn btn-success';
-    botaoConfirmar.textContent = 'Confirmar pedido';
+    botaoConfirmar.type         =   'button';
+    botaoConfirmar.className    =   'btn btn-success flex-fill';
+    botaoConfirmar.textContent  =   'Confirmar pedido';
 
     botaoConfirmar.addEventListener('click', () => {
         void confirmarPedido(pedido, botaoConfirmar);
     });
 
-    acoesPedido.append(botaoCancelar, botaoConfirmar);
+    acoesPedido.append(botaoCancelar);
+
+    if (pedido.status === 'pendente')
+    {
+        acoesPedido.append(botaoConfirmar);
+    }
+
+    if (pedido.status === 'confirmado')
+    {
+        acoesPedido.append(criarLinksNavegacao());
+    }
 }
 
 async function confirmarPedido(pedido: Pedido,botaoConfirmar: HTMLButtonElement,): Promise<void>

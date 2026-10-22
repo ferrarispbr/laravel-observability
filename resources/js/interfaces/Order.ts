@@ -16,8 +16,8 @@ export interface RequisicaoCriarPedido {
 
 export interface RespostaCriarPedido {
     message: string;
+    data: Pedido;
 }
-
 export interface ItemPedido {
     id: number;
     product_id: number;

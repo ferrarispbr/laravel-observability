@@ -244,25 +244,23 @@ async function criarPedido(): Promise<void> {
 
         const dados = await resposta.json() as RespostaCriarPedido | RespostaErroApi;
 
-        if (!resposta.ok) {
+        if (!resposta.ok)
+        {
             const erro = dados as RespostaErroApi;
-
             throw new Error(erro.message);
         }
 
-        const pedido = dados as RespostaCriarPedido;
+        const pedidoCriado = dados as RespostaCriarPedido;
+        window.location.assign(`/pedidos/${pedidoCriado.data.id}`);
 
-        carrinho.clear();
-        atualizarCarrinho();
-
-        exibirFeedbackPedido(pedido.message, 'success');
-    } catch (erro) {
-        const mensagem = erro instanceof Error
-            ? erro.message
-            : 'Não foi possível criar o pedido. Tente novamente.';
-
+    }
+    catch (erro)
+    {
+        const mensagem = erro instanceof Error ? erro.message : 'Não foi possível criar o pedido. Tente novamente.';
         exibirFeedbackPedido(mensagem, 'danger');
-    } finally {
+    }
+    finally
+    {
         botaoCriarPedido.textContent = 'Criar pedido';
         botaoCriarPedido.disabled = carrinho.size === 0;
     }
