@@ -12,7 +12,8 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::post('/login', [AuthController::class, 'login']);
+// Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login'); // esse erro apontado é somente da  IDE, o laravel ja reconhece o throttle
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 
@@ -29,5 +30,3 @@ Route::post('/orders', [OrderController::class, 'store'])->middleware('auth:sanc
 Route::post('/orders/{order}/confirm', [OrderController::class, 'confirm'])->middleware('auth:sanctum');
 
 Route::post('/orders/{order}/cancel', [OrderController::class, 'cancel'])->middleware('auth:sanctum');
-
-

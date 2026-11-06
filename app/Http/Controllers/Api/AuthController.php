@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
@@ -38,12 +39,9 @@ class AuthController extends Controller
             'password' => Hash::make($data['password']),
         ]);
 
-        $token = $user->createToken('postman')->plainTextToken;
-
         return response()->json([
             'message' => 'Usuário cadastrado com sucesso.',
             'user' => $user,
-            'token' => $token,
         ], 201);
     }
 
@@ -54,26 +52,30 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $user = User::where('email', $data['email'])->first();
-
-        if (! $user || ! Hash::check($data['password'], $user->password)) {
+        if (! Auth::attempt([
+            'email' => $data['email'],
+            'password' => $data['password'],
+        ])) {
             return response()->json([
                 'message' => 'E-mail ou senha inválidos.',
             ], 401);
         }
 
-        $token = $user->createToken('postman')->plainTextToken;
+        $request->session()->regenerate();
 
         return response()->json([
             'message' => 'Login realizado com sucesso.',
-            'user' => $user,
-            'token' => $token,
+            'user' => $request->user(),
         ]);
+
     }
 
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        Auth::logout();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return response()->json([
             'message' => 'Logout realizado com sucesso.',
@@ -81,5 +83,3 @@ class AuthController extends Controller
     }
 
 }
-
-
