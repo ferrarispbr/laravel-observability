@@ -17,7 +17,7 @@ export interface UsuarioPerfil extends UsuarioAutenticado {
 export interface RespostaLogin {
     message: string;
     user: UsuarioAutenticado;
-    token: string;
+    //token: string;
 }
 
 export interface RespostaErroApi {

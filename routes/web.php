@@ -1,11 +1,18 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
+    use App\Http\Controllers\Api\AuthController;
+    use Illuminate\Support\Facades\Route;
 
-Route::view('/', 'auth.login')->name('login');
+    Route::view('/', 'auth.login')->middleware('guest')->name('login');
 
-Route::view('/produtos', 'products.index')->name('products.index');
+    Route::post('/login', [AuthController::class, 'login'])->middleware(['guest', 'throttle:login'])->name('login.store');
 
-Route::view('/meus-pedidos', 'orders.index')->name('orders.index');
+    Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 
-Route::view('/pedidos/{order}', 'orders.show')->name('orders.show');
+    Route::middleware('auth')->group(function () {
+        Route::view('/produtos', 'products.index')->name('products.index');
+
+        Route::view('/meus-pedidos', 'orders.index')->name('orders.index');
+
+        Route::view('/pedidos/{order}', 'orders.show')->name('orders.show');
+    });

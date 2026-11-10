@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
@@ -16,7 +17,7 @@ class AuthController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'password' => ['required', 'string', 'confirmed', Password::defaults()],
             'address' => ['required', 'string', 'max:255'],
             'address_number' => ['required', 'string', 'max:20'],
             'address_complement' => ['nullable', 'string', 'max:255'],
@@ -52,34 +53,21 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        if (! Auth::attempt([
-            'email' => $data['email'],
-            'password' => $data['password'],
-        ])) {
-            return response()->json([
-                'message' => 'E-mail ou senha inválidos.',
-            ], 401);
+        if (! Auth::attempt(['email' => $data['email'], 'password' => $data['password'],]))
+        {
+            return response()->json(['message' => 'E-mail ou senha inválidos.', ], 401);
         }
 
         $request->session()->regenerate();
-
-        return response()->json([
-            'message' => 'Login realizado com sucesso.',
-            'user' => $request->user(),
-        ]);
-
+        return response()->json(['message' => 'Login realizado com sucesso.','user' => $request->user(), ]);
     }
 
     public function logout(Request $request): JsonResponse
     {
-        Auth::logout();
+        Auth::guard('web')->logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-
-        return response()->json([
-            'message' => 'Logout realizado com sucesso.',
-        ]);
+        return response()->json(['message' => 'Logout realizado com sucesso.',]);
     }
-
 }
