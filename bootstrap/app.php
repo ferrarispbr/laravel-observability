@@ -3,6 +3,8 @@
     use Illuminate\Foundation\Application;
     use Illuminate\Foundation\Configuration\Exceptions;
     use Illuminate\Foundation\Configuration\Middleware;
+    use App\Http\Middleware\EnsurePrometheusToken;
+    use App\Http\Middleware\RecordHttpMetrics;
 
     return Application::configure(basePath: dirname(__DIR__))
 
@@ -22,6 +24,11 @@
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         $middleware->redirectUsersTo('/produtos');
+
+        # PROMETHEUS
+        $middleware->alias(['prometheus.token' => EnsurePrometheusToken::class,]);
+        $middleware->web(prepend: [RecordHttpMetrics::class,]);
+        $middleware->api(prepend: [RecordHttpMetrics::class,]);
     })
 
     ->withExceptions(function (Exceptions $exceptions): void {

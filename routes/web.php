@@ -2,6 +2,7 @@
 
     use App\Http\Controllers\Api\AuthController;
     use Illuminate\Support\Facades\Route;
+    use App\Http\Controllers\MetricsController;
 
     Route::view('/', 'auth.login')->middleware('guest')->name('login');
 
@@ -16,3 +17,6 @@
 
         Route::view('/pedidos/{order}', 'orders.show')->name('orders.show');
     });
+
+    # rota do prometheus
+    Route::get('/metrics', MetricsController::class)->middleware('prometheus.token')->name('metrics');
