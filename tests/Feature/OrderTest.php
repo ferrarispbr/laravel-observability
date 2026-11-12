@@ -8,6 +8,8 @@ use App\OrderStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
+use Prometheus\CollectorRegistry;
+use Prometheus\RenderTextFormat;
 
 class OrderTest extends TestCase
 {
@@ -15,13 +17,8 @@ class OrderTest extends TestCase
 
     public function test_authenticated_user_can_create_a_pending_order(): void
     {
-        $user = User::factory()->create();
-
-        $product = Product::create([
-            'name' => 'Teclado mecânico',
-            'price' => 299.90,
-            'stock' => 10,
-        ]);
+        $user   =   User::factory()->create();
+        $product=   Product::create(['name' => 'Teclado mecânico','price' => 299.90,'stock' => 10,]);
 
         Sanctum::actingAs($user);
 
@@ -39,47 +36,23 @@ class OrderTest extends TestCase
             ->assertJsonPath('message', 'Pedido criado com sucesso.')
             ->assertJsonPath('data.status', OrderStatus::PENDENTE->value);
 
+        $this->assertStringContainsString('laravel_orders_created_total 1',$this->renderedMetrics(), );
+
         $orderId = $response->json('data.id');
 
-        $this->assertDatabaseHas('orders', [
-            'user_id' => $user->id,
-            'status' => OrderStatus::PENDENTE->value,
-            'total' => 599.80,
-        ]);
-
-        $this->assertDatabaseHas('order_items', [
-            'order_id' => $orderId,
-            'product_id' => $product->id,
-            'quantity' => 2,
-            'unit_price' => 299.90,
-        ]);
-
-        $this->assertDatabaseHas('products', [
-            'id' => $product->id,
-            'stock' => 10,
-        ]);
+        $this->assertDatabaseHas('orders', ['user_id' => $user->id,'status' => OrderStatus::PENDENTE->value,'total' => 599.80,]);
+        $this->assertDatabaseHas('order_items', ['order_id' => $orderId,'product_id' => $product->id,'quantity' => 2,'unit_price' => 299.90,]);
+        $this->assertDatabaseHas('products', ['id' => $product->id,'stock' => 10,]);
     }
 
     public function test_authenticated_user_can_confirm_a_pending_order_and_reduce_stock(): void
     {
         $user = User::factory()->create();
 
-        $product = Product::create([
-            'name' => 'Teclado mecânico',
-            'price' => 299.90,
-            'stock' => 10,
-        ]);
+        $product=   Product::create(['name' => 'Teclado mecânico','price' => 299.90,'stock' => 10,]);
+        $order  =   $user->orders()->create(['status' => OrderStatus::PENDENTE,'total' => 599.80,]);
 
-        $order = $user->orders()->create([
-            'status' => OrderStatus::PENDENTE,
-            'total' => 599.80,
-        ]);
-
-        $order->items()->create([
-            'product_id' => $product->id,
-            'quantity' => 2,
-            'unit_price' => 299.90,
-        ]);
+        $order->items()->create(['product_id' => $product->id,'quantity' => 2,'unit_price' => 299.90,]);
 
         Sanctum::actingAs($user);
 
@@ -90,38 +63,18 @@ class OrderTest extends TestCase
             ->assertJsonPath('message', 'Pedido confirmado com sucesso.')
             ->assertJsonPath('data.status', OrderStatus::CONFIRMADO->value);
 
-        $this->assertDatabaseHas('orders', [
-            'id' => $order->id,
-            'status' => OrderStatus::CONFIRMADO->value,
-        ]);
-
-        $this->assertDatabaseHas('products', [
-            'id' => $product->id,
-            'stock' => 8,
-        ]);
+        $this->assertDatabaseHas('orders', ['id' => $order->id,'status' => OrderStatus::CONFIRMADO->value,]);
+        $this->assertDatabaseHas('products', ['id' => $product->id,'stock' => 8, ]);
 
     }
 
     public function test_order_remains_pending_when_stock_is_insufficient(): void
     {
-        $user = User::factory()->create();
+        $user   =   User::factory()->create();
+        $product=   Product::create(['name' => 'Teclado mecânico','price' => 299.90,'stock' => 10,]);
+        $order  =   $user->orders()->create(['status' => OrderStatus::PENDENTE,'total' => 3288.90,]);
 
-        $product = Product::create([
-            'name' => 'Teclado mecânico',
-            'price' => 299.90,
-            'stock' => 10,
-        ]);
-
-        $order = $user->orders()->create([
-            'status' => OrderStatus::PENDENTE,
-            'total' => 3288.90,
-        ]);
-
-        $order->items()->create([
-            'product_id' => $product->id,
-            'quantity' => 11,
-            'unit_price' => 299.90,
-        ]);
+        $order->items()->create(['product_id' => $product->id,'quantity' => 11,'unit_price' => 299.90,]);
 
         Sanctum::actingAs($user);
 
@@ -129,43 +82,20 @@ class OrderTest extends TestCase
 
         $response
             ->assertUnprocessable()
-            ->assertJsonPath(
-                'errors.stock.0',
-                'Estoque insuficiente para o produto Teclado mecânico.'
-            );
+            ->assertJsonPath('errors.stock.0','Estoque insuficiente para o produto Teclado mecânico.');
 
-        $this->assertDatabaseHas('orders', [
-            'id' => $order->id,
-            'status' => OrderStatus::PENDENTE->value,
-        ]);
-
-        $this->assertDatabaseHas('products', [
-            'id' => $product->id,
-            'stock' => 10,
-        ]);
-
+        $this->assertDatabaseHas('orders', ['id' => $order->id,'status' => OrderStatus::PENDENTE->value,]);
+        $this->assertDatabaseHas('products', ['id' => $product->id,'stock' => 10,]);
     }
 
     public function test_authenticated_user_can_cancel_a_pending_order_without_changing_stock(): void
     {
         $user = User::factory()->create();
 
-        $product = Product::create([
-            'name' => 'Teclado mecânico',
-            'price' => 299.90,
-            'stock' => 10,
-        ]);
+        $product=   Product::create(['name' => 'Teclado mecânico','price' => 299.90,'stock' => 10,]);
+        $order  =   $user->orders()->create(['status' => OrderStatus::PENDENTE,'total' => 599.80,]);
 
-        $order = $user->orders()->create([
-            'status' => OrderStatus::PENDENTE,
-            'total' => 599.80,
-        ]);
-
-        $order->items()->create([
-            'product_id' => $product->id,
-            'quantity' => 2,
-            'unit_price' => 299.90,
-        ]);
+        $order->items()->create(['product_id' => $product->id,'quantity' => 2,'unit_price' => 299.90,]);
 
         Sanctum::actingAs($user);
 
@@ -176,15 +106,8 @@ class OrderTest extends TestCase
             ->assertJsonPath('message', 'Pedido cancelado com sucesso.')
             ->assertJsonPath('data.status', OrderStatus::CANCELADO->value);
 
-        $this->assertDatabaseHas('orders', [
-            'id' => $order->id,
-            'status' => OrderStatus::CANCELADO->value,
-        ]);
-
-        $this->assertDatabaseHas('products', [
-            'id' => $product->id,
-            'stock' => 10,
-        ]);
+        $this->assertDatabaseHas('orders', ['id' => $order->id,'status' => OrderStatus::CANCELADO->value,]);
+        $this->assertDatabaseHas('products', ['id' => $product->id,'stock' => 10,]);
 
     }
 
@@ -192,22 +115,10 @@ class OrderTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $product = Product::create([
-            'name' => 'Teclado mecânico',
-            'price' => 299.90,
-            'stock' => 8,
-        ]);
+        $product=   Product::create(['name' => 'Teclado mecânico','price' => 299.90,'stock' => 8,]);
+        $order  =   $user->orders()->create(['status' => OrderStatus::CONFIRMADO,'total' => 599.80,]);
 
-        $order = $user->orders()->create([
-            'status' => OrderStatus::CONFIRMADO,
-            'total' => 599.80,
-        ]);
-
-        $order->items()->create([
-            'product_id' => $product->id,
-            'quantity' => 2,
-            'unit_price' => 299.90,
-        ]);
+        $order->items()->create(['product_id' => $product->id,'quantity' => 2,'unit_price' => 299.90,]);
 
         Sanctum::actingAs($user);
 
@@ -218,15 +129,8 @@ class OrderTest extends TestCase
             ->assertJsonPath('message', 'Pedido cancelado com sucesso.')
             ->assertJsonPath('data.status', OrderStatus::CANCELADO->value);
 
-        $this->assertDatabaseHas('orders', [
-            'id' => $order->id,
-            'status' => OrderStatus::CANCELADO->value,
-        ]);
-
-        $this->assertDatabaseHas('products', [
-            'id' => $product->id,
-            'stock' => 10,
-        ]);
+        $this->assertDatabaseHas('orders', ['id' => $order->id,'status' => OrderStatus::CANCELADO->value,]);
+        $this->assertDatabaseHas('products', ['id' => $product->id,'stock' => 10,]);
 
     }
 
@@ -234,22 +138,10 @@ class OrderTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $product = Product::create([
-            'name' => 'Teclado mecânico',
-            'price' => 299.90,
-            'stock' => 8,
-        ]);
+        $product=   Product::create(['name' => 'Teclado mecânico','price' => 299.90,'stock' => 8,]);
+        $order  =   $user->orders()->create(['status' => OrderStatus::CONFIRMADO,'total' => 599.80,]);
 
-        $order = $user->orders()->create([
-            'status' => OrderStatus::CONFIRMADO,
-            'total' => 599.80,
-        ]);
-
-        $order->items()->create([
-            'product_id' => $product->id,
-            'quantity' => 2,
-            'unit_price' => 299.90,
-        ]);
+        $order->items()->create(['product_id' => $product->id,'quantity' => 2,'unit_price' => 299.90,]);
 
         Sanctum::actingAs($user);
 
@@ -257,45 +149,20 @@ class OrderTest extends TestCase
 
         $response
         ->assertUnprocessable()
-        ->assertJsonPath(
-            'errors.order.0',
-            'Somente pedidos pendentes podem ser confirmados.'
-        );
+        ->assertJsonPath('errors.order.0','Somente pedidos pendentes podem ser confirmados.');
 
-        $this->assertDatabaseHas('orders', [
-            'id' => $order->id,
-            'status' => OrderStatus::CONFIRMADO->value,
-        ]);
-
-        $this->assertDatabaseHas('products', [
-            'id' => $product->id,
-            'stock' => 8,
-        ]);
-
-
-
+        $this->assertDatabaseHas('orders', ['id' => $order->id,'status' => OrderStatus::CONFIRMADO->value,]);
+        $this->assertDatabaseHas('products', ['id' => $product->id,'stock' => 8,]);
     }
 
     public function test_authenticated_user_cannot_cancel_an_already_cancelled_order(): void
     {
         $user = User::factory()->create();
 
-        $product = Product::create([
-            'name' => 'Teclado mecânico',
-            'price' => 299.90,
-            'stock' => 10,
-        ]);
+        $product=   Product::create(['name' => 'Teclado mecânico','price' => 299.90,'stock' => 10,]);
+        $order  =   $user->orders()->create(['status' => OrderStatus::CANCELADO,'total' => 599.80,]);
 
-        $order = $user->orders()->create([
-            'status' => OrderStatus::CANCELADO,
-            'total' => 599.80,
-        ]);
-
-        $order->items()->create([
-            'product_id' => $product->id,
-            'quantity' => 2,
-            'unit_price' => 299.90,
-        ]);
+        $order->items()->create(['product_id' => $product->id,'quantity' => 2,'unit_price' => 299.90,]);
 
         Sanctum::actingAs($user);
 
@@ -303,23 +170,19 @@ class OrderTest extends TestCase
 
         $response
             ->assertUnprocessable()
-            ->assertJsonPath(
-                'errors.order.0',
-                'Este pedido já está cancelado.'
-            );
+            ->assertJsonPath('errors.order.0','Este pedido já está cancelado.');
 
-        $this->assertDatabaseHas('orders', [
-            'id' => $order->id,
-            'status' => OrderStatus::CANCELADO->value,
-        ]);
-
-        $this->assertDatabaseHas('products', [
-            'id' => $product->id,
-            'stock' => 10,
-        ]);
+        $this->assertDatabaseHas('orders', ['id' => $order->id,'status' => OrderStatus::CANCELADO->value,]);
+        $this->assertDatabaseHas('products', ['id' => $product->id,'stock' => 10,]);
 
     }
 
+    private function renderedMetrics(): string
+    {
+        $registry = app(CollectorRegistry::class);
 
-
+        return (new RenderTextFormat())->render($registry->getMetricFamilySamples(),);
+    }
 }
+
+

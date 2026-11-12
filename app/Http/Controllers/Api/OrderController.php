@@ -1,164 +1,124 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+    namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use App\Models\Product;
-use App\OrderStatus;
-use Illuminate\Support\Facades\DB;
-use App\Models\Order;
-use Illuminate\Validation\ValidationException;
+    use App\Http\Controllers\Controller;
+    use App\Models\Order;
+    use App\Models\Product;
+    use App\Observability\OrderMetrics;
+    use App\OrderStatus;
+    use Illuminate\Http\JsonResponse;
+    use Illuminate\Http\Request;
+    use Illuminate\Support\Facades\DB;
+    use Illuminate\Validation\ValidationException;
 
-class OrderController extends Controller
-{
-
-    public function index(Request $request): JsonResponse
+    class OrderController extends Controller
     {
-        $orders = $request->user()
-            ->orders()
-            ->with(['items.product'])
-            ->latest()
-            ->get();
+        public function index(Request $request): JsonResponse
+        {
+            $orders = $request->user()->orders()->with(['items.product'])->latest()->get();
+            return response()->json(['data' => $orders,]);
+        }
 
-        return response()->json([
-            'data' => $orders,
-        ]);
-    }
+        public function show(Request $request, Order $order): JsonResponse
+        {
+            $order = $request->user()->orders()->with(['items.product'])->findOrFail($order->id);
+            return response()->json(['data' => $order,]);
+        }
 
-    public function show(Request $request, Order $order): JsonResponse
-    {
-        $order = $request->user()
-            ->orders()
-            ->with(['items.product'])
-            ->findOrFail($order->id);
+        public function store(Request $request, OrderMetrics $metrics): JsonResponse
+        {
+            $data = $request->validate([
+                                            'items' => ['required', 'array', 'min:1'],
+                                            'items.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],
+                                            'items.*.quantity' => ['required', 'integer', 'min:1'],
+                                        ]);
 
-        return response()->json([
-            'data' => $order,
-        ]);
-    }
+            $order = DB::transaction(function () use ($data, $request)
+            {
+                $order = $request->user()->orders()->create(['status' => OrderStatus::PENDENTE,'total' => 0,]);
+                $total = 0;
 
-
-    public function store(Request $request): JsonResponse
-    {
-        $data = $request->validate([
-            'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],
-            'items.*.quantity' => ['required', 'integer', 'min:1'],
-        ]);
-
-        $order = DB::transaction(function () use ($data, $request) {
-            $order = $request->user()->orders()->create([
-                'status' => OrderStatus::PENDENTE,
-                'total' => 0,
-            ]);
-
-            $total = 0;
-
-            foreach ($data['items'] as $itemData) {
-                $product = Product::findOrFail($itemData['product_id']);
-
-                $order->items()->create([
-                    'product_id' => $product->id,
-                    'quantity' => $itemData['quantity'],
-                    'unit_price' => $product->price,
-                ]);
-
-                $total += $product->price * $itemData['quantity'];
-            }
-
-            $order->update([
-                'total' => $total,
-            ]);
-
-            return $order->load(['items.product']);
-        });
-
-        return response()->json([
-            'message' => 'Pedido criado com sucesso.',
-            'data' => $order,
-        ], 201);
-    }
-
-    public function confirm(Request $request, Order $order): JsonResponse
-    {
-        $order = DB::transaction(function () use ($request, $order) {
-            $order = $request->user()
-                ->orders()
-                ->with('items')
-                ->lockForUpdate()
-                ->findOrFail($order->id);
-
-            if ($order->status !== OrderStatus::PENDENTE) {
-                throw ValidationException::withMessages([
-                    'order' => ['Somente pedidos pendentes podem ser confirmados.'],
-                ]);
-            }
-
-            foreach ($order->items as $item) {
-                $product = Product::query()
-                    ->lockForUpdate()
-                    ->findOrFail($item->product_id);
-
-                if ($product->stock < $item->quantity) {
-                    throw ValidationException::withMessages([
-                        'stock' => ["Estoque insuficiente para o produto {$product->name}."],
-                    ]);
+                foreach ($data['items'] as $itemData)
+                {
+                    $product = Product::findOrFail($itemData['product_id']);
+                    $order->items()->create(['product_id' => $product->id,'quantity' => $itemData['quantity'],'unit_price' => $product->price,]);
+                    $total += $product->price * $itemData['quantity'];
                 }
 
-                $product->decrement('stock', $item->quantity);
+                $order->update(['total' => $total,]);
+                return $order->load(['items.product']);
+            });
+
+            $metrics->recordCreated();
+            return response()->json(['message' => 'Pedido criado com sucesso.','data' => $order,], 201);
+        }
+
+        public function confirm(Request $request,Order $order,OrderMetrics $metrics,): JsonResponse
+        {
+            try
+            {
+                $order = DB::transaction(function () use ($request, $order)
+                {
+                    $order = $request->user()->orders()->with('items')->lockForUpdate()->findOrFail($order->id);
+
+                    if ($order->status !== OrderStatus::PENDENTE)
+                    {
+                        throw ValidationException::withMessages(['order' => ['Somente pedidos pendentes podem ser confirmados.'],]);
+                    }
+
+                    foreach ($order->items as $item)
+                    {
+                        $product = Product::query()->lockForUpdate()->findOrFail($item->product_id);
+
+                        if ($product->stock < $item->quantity)
+                        {
+                            throw ValidationException::withMessages(['stock' => ["Estoque insuficiente para o produto {$product->name}."],  ]);
+                        }
+
+                        $product->decrement('stock', $item->quantity);
+                    }
+
+                    $order->update(['status' => OrderStatus::CONFIRMADO,]);
+                    return $order->load(['items.product']);
+                });
+            }
+            catch (ValidationException $exception)
+            {
+                $reason = array_key_exists('stock', $exception->errors()) ? 'insufficient_stock' : 'invalid_status';
+                $metrics->recordConfirmationFailure($reason);
+                throw $exception;
             }
 
-            $order->update([
-                'status' => OrderStatus::CONFIRMADO,
-            ]);
+            $metrics->recordConfirmed();
+            return response()->json(['message' => 'Pedido confirmado com sucesso.','data' => $order, ]);
+        }
 
-            return $order->load(['items.product']);
-        });
+        public function cancel(Request $request, Order $order,OrderMetrics $metrics,): JsonResponse
+        {
+            $order = DB::transaction(function () use ($request, $order)
+            {
+                $order = $request->user()->orders()->with('items')->lockForUpdate()->findOrFail($order->id);
 
-        return response()->json([
-            'message' => 'Pedido confirmado com sucesso.',
-            'data' => $order,
-        ]);
-    }
-
-    public function cancel(Request $request, Order $order): JsonResponse
-    {
-        $order = DB::transaction(function () use ($request, $order) {
-            $order = $request->user()
-                ->orders()
-                ->with('items')
-                ->lockForUpdate()
-                ->findOrFail($order->id);
-
-            if ($order->status === OrderStatus::CANCELADO) {
-                throw ValidationException::withMessages([
-                    'order' => ['Este pedido já está cancelado.'],
-                ]);
-            }
-
-            if ($order->status === OrderStatus::CONFIRMADO) {
-                foreach ($order->items as $item) {
-                    $product = Product::query()
-                        ->lockForUpdate()
-                        ->findOrFail($item->product_id);
-
-                    $product->increment('stock', $item->quantity);
+                if ($order->status === OrderStatus::CANCELADO)
+                {
+                    throw ValidationException::withMessages(['order' => ['Este pedido já está cancelado.'],]);
                 }
-            }
 
-            $order->update([
-                'status' => OrderStatus::CANCELADO,
-            ]);
+                if ($order->status === OrderStatus::CONFIRMADO)
+                {
+                    foreach ($order->items as $item)
+                    {
+                        $product = Product::query()->lockForUpdate()->findOrFail($item->product_id);
+                        $product->increment('stock', $item->quantity);
+                    }
+                }
 
-            return $order->load(['items.product']);
-        });
+                $order->update(['status' => OrderStatus::CANCELADO,]);
+                return $order->load(['items.product']);
+            });
 
-        return response()->json([
-            'message' => 'Pedido cancelado com sucesso.',
-            'data' => $order,
-        ]);
+            $metrics->recordCancelled();
+            return response()->json(['message' => 'Pedido cancelado com sucesso.','data' => $order,  ]);
+        }
     }
-
-}

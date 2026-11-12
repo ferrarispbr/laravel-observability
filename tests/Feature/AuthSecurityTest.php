@@ -20,9 +20,8 @@
 
         public function test_user_can_log_in_using_valid_credentials(): void
         {
-            $user = User::factory()->create(['password' => Hash::make('Senha#123'),]);
-
-            $response = $this->postJson('/login', ['email' => $user->email,'password' => 'Senha#123',]);
+            $user       =   User::factory()->create(['password' => Hash::make('Senha#123'),]);
+            $response   =   $this->postJson('/login', ['email' => $user->email,'password' => 'Senha#123',]);
 
             $response
                 ->assertOk()
@@ -39,9 +38,8 @@
         */
         public function test_user_cannot_log_in_using_invalid_credentials(): void
         {
-            $user = User::factory()->create(['password' => Hash::make('Senha#123'),]);
-
-            $response = $this->postJson('/login', ['email' => $user->email,'password' => 'SenhaIncorreta#123', ]);
+            $user       =   User::factory()->create(['password' => Hash::make('Senha#123'),]);
+            $response   =   $this->postJson('/login', ['email' => $user->email,'password' => 'SenhaIncorreta#123', ]);
 
             $response ->assertUnauthorized()->assertExactJson(['message' => 'E-mail ou senha inválidos.',]);
 

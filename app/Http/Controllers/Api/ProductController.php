@@ -14,13 +14,8 @@ class ProductController extends Controller
      */
     public function index(): JsonResponse
     {
-        $products = Product::query()
-            ->orderBy('name')
-            ->get();
-
-        return response()->json([
-            'data' => $products,
-        ]);
+        $products = Product::query()->orderBy('name')->get();
+        return response()->json(['data' => $products,]);
     }
 
     /**
@@ -35,10 +30,6 @@ class ProductController extends Controller
         ]);
 
         $product = Product::create($data);
-
-        return response()->json([
-            'message' => 'Produto cadastrado com sucesso.',
-            'data' => $product,
-        ], 201);
+        return response()->json(['message' => 'Produto cadastrado com sucesso.','data' => $product,], 201);
     }
 }
